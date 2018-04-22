@@ -51,25 +51,28 @@ def get_tweets(twitter_api, producer, topic_name):
     number = 100
     
     #search Twitter API
-    result = twitter_api.search.tweets(q=twitter_query, result_type='mixed', lang='en', count=number, tweet_mode='extended')
+    result = twitter_api.search.tweets(q=twitter_query, result_type='recent', lang='en', count=number, tweet_mode='extended')
     statuses = result['statuses']
 
+    keys = ['id_str', 'created_at', 'followers_count', 'favourites_count', 'retweet_count', 'location']
+    
     # create tweet data and push to Kafka producer
     for status in statuses:
         entry = ''
-        entry += (str(status['id_str']) + ";")
-        entry += (str(normalize_timestamp(str(status['created_at']))) + ";")
-        entry += (str(status['user']['followers_count']) + ";")
-        entry += (str(status['user']['favourites_count']) + ";")
-        entry += (str(status['retweet_count']) + ";")
-        entry += (str(status['user']['location']) + ";")
-        entry += (str(clean_tweet(status['full_text'])) + ";")
-        producer.send(topic_name, str.encode(entry))    
+	for key in keys:
+	    if key in status:
+		entry += unicode(status[key]) + ';'
+
+	tweet_key = 'full_text'
+	if tweet_key in status:
+	    entry += unicode(clean_tweet(status[tweet_key])) + ';'
+
+	producer.send(topic_name, entry.encode('utf-8'))    
 
 # set schedule for periodic fetching
 def periodic_work(interval):
     twitter_api = get_auth()
-    producer = KafkaProducer(bootstrap_servers='localhost:9092')
+    producer = KafkaProducer(bootstrap_servers=['localhost:9092'])
     topic_name = 'facebook'
     
     while True:
